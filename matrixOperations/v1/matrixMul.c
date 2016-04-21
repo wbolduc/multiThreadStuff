@@ -84,7 +84,7 @@ void *scalarMultiply( void *arg )
         pthread_mutex_unlock(&signalLock);
         valPickedUp = 1;
 
-        *nextVal = data->tid;//data->scalar;
+        *nextVal += data->tid;//data->scalar;
         pthread_mutex_unlock(&valLock);
         mathDelay(1050);
     }
@@ -128,7 +128,7 @@ int scalarMultiply2d(int** matrix, int width, int length, double scalar)
 
             pthread_mutex_lock(&valLock);
 
-            printMatrix(matrix,width,length);
+            //printMatrix(matrix,width,length);
         }
     }
 

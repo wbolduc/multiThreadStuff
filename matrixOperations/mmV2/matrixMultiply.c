@@ -57,25 +57,19 @@ void printMatrix(int** matrix, int width, int length)
 int* getNextItem( matrix_pos_t * pos)
 {
     int *p = NULL;
-
     pthread_mutex_lock(&pos->lock);
-    //printMatrix(pos->matrix,pos->x, pos->y);
-    if (pos->y < pos->ySize)
+    if(pos->y < pos->ySize)
     {
-        if (pos->x < pos->xSize)
+        if (pos->x >= pos->xSize)
         {
-            p = &pos->matrix[pos->y][pos->x++]; //get current location address then increment x
+            pos->x = 0;
+            pos->y++;
         }
-        else
-        {
-            if (pos->y < pos->ySize)
-            {
-                pos->x = 0;
-                pos->y++;
-                p = &pos->matrix[pos->y][pos->x];
-            }
-        }
+
+        p = &pos->matrix[pos->y][pos->x];
+        pos->x++;
     }
+    //printf("x = %d, y = %d\n%p\n------------------------\n", pos->x, pos->y, p);
     pthread_mutex_unlock(&pos->lock);
 
     return p;
@@ -102,11 +96,11 @@ void *scalarWorker( void *arg )
     int *item;
     while((item = getNextItem(data->pos)))
     {
-        mathDelay(1500);
-        *item = data->tid;      //in reality it would do math and not just assign it's own thread value
+        mathDelay(1050);
+        //printf("Thread %d got address  %p\n", data->tid, item);
+        *item += data->tid;      //in reality it would do math and not just assign it's own thread value
     }
 
-    printf("Thread %d got no more numbers, terminate\n",data->tid);
     pthread_exit(NULL);
 }
 
@@ -128,7 +122,6 @@ int scalarMultiply2d(int** matrix, int width, int length, double scalar)
         thr_data[i].tid = 1 + i;
         thr_data[i].scalar = scalar;
         thr_data[i].pos = pos;
-        printf("made thread %d\n",i+1);
         if ((rc = pthread_create(&thr[i], NULL, scalarWorker, &thr_data[i])))
         {
             fprintf(stderr, "error: pthread_create, rc: %d\n", rc);
@@ -142,7 +135,6 @@ int scalarMultiply2d(int** matrix, int width, int length, double scalar)
     {
         pthread_join(thr[i], NULL);
     }
-
     free(pos);
     return 1;
 }

@@ -1,5 +1,5 @@
 All:
-	gcc  matrixMultiply.c -o mm -pthread
+	gcc  -g matrixMultiply.c -o mm -pthread
 
 clean:
 	rm mm
