@@ -3,37 +3,16 @@
 #include <pthread.h>
 #include <signal.h>
 #include <time.h>
+#include "matrix.c"
 
-#include "matrixMultiply.h"
+typedef struct _thread_data_t {
+  int tid;
+  matrix_2d_t *pos;
+  double scalar;
+} thread_data_t;
 
-void delay( int secs )
-{
-    secs += time(NULL);
-    while (time(NULL) < secs);
-}
 
-void mathDelay( int value )
-{
-    int i,j;
-    for(i = 0; i<value; i++)
-    {
-        for(j = 0; j < value; j++);
-    }
-}
-
-void printMatrix(int** matrix, int width, int length)
-{
-    int i, j;
-    for(i = 0; i < length; i++)
-    {
-        for(j = 0; j < width; j++)
-        {
-            printf("%d ", matrix[i][j]);
-        }
-        printf("\n");
-    }
-    printf("-------------------------------------------------------\n");
-}
+int NUM_THREADS;
 
 //returns the next item for a thread to operate on. If there are no longer any items return 0
 int* getNextItem( matrix_2d_t * pos)
@@ -57,7 +36,7 @@ int* getNextItem( matrix_2d_t * pos)
     return p;
 }
 
-matrix_2d_t *makePos(int **matrix, int xSize, int ySize)
+matrix_2d_t *makeMatrix2d(int **matrix, int xSize, int ySize)
 {
     matrix_2d_t *newPos = malloc(sizeof(matrix_2d_t));
     newPos->matrix = matrix;
@@ -87,7 +66,7 @@ void *scalarWorker( void *arg )
 }
 
 //Boss class, creates all the threads and then waits for them all to join
-int scalarMultiply2d(int** matrix, int width, int length, double scalar, int NUM_THREADS)
+int scalarMultiply2d(int** matrix, int width, int length, double scalar)
 {
     int i, j, rc;
 
@@ -96,7 +75,7 @@ int scalarMultiply2d(int** matrix, int width, int length, double scalar, int NUM
     thread_data_t thr_data[NUM_THREADS];
 
     /* create pos structure */
-    matrix_2d_t *pos = makePos(matrix, width, length);
+    matrix_2d_t *pos = makeMatrix2d(matrix, width, length);
 
     /* create threads */
     for (i = 0; i < NUM_THREADS; ++i)
