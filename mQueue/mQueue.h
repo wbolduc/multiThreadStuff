@@ -3,10 +3,17 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <pthread.h>
+
+//builds a lock on every array index, will try to make another version in the future that uses less locks, might be faster?
+
+//A multithreadable version of my queue library
+
 
 //obvious limitation is that the user needs to use integers for priorities
 typedef struct _queue_item_t{
     void *data;
+    pthread_mutex_t heapLock;
     int priority;
 }queue_item_t;
 
@@ -17,6 +24,11 @@ typedef struct _queue_t{
 
     int itemCount;
     int heapSize;
+
+    int accessors;
+    pthread_mutex_t *accessorLock;
+    pthread_cond_t *accessorCond;
+
 }queue_t;
 
 typedef union _temp_v{

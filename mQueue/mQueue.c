@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <pthread.h>
 #include <mQueue.h>
 
 
@@ -18,6 +19,8 @@ inline void swap(queue_item_t * heap, int a, int b)
 }
 
 //get higest priority item
+//Due to threading, pop must wait for all adding functions to end to ensure that the lowest priority item will always be removed
+//NOTE: It is probably true that if you didn't care so much about always having the highest priority then you could allow both add and pop operations to run concurrently for increased performance
 void *pop(queue_t* queue)
 {
     int child;
@@ -25,6 +28,17 @@ void *pop(queue_t* queue)
     queue_item_t* heap = queue->heap;
     void *toRet = NULL;
 
+    //check to see if adding is allowed yet,
+    //add can only add when accessors is negative or 0
+    pthread_mutex_lock(queue->accessorLock);
+    while(queue->accessors > 0)
+    {
+        pthread_cond_wait(queue->accessorCond, queue->accessorLock);
+    }
+    queue->accessors--;
+    pthread_mutex_unlock(queue->accessorLock);
+
+    //begin popping
     if(queue->itemCount > 0)
     {
         toRet = heap[0].data;
@@ -79,17 +93,31 @@ void *pop(queue_t* queue)
             child = parent * 2;
         }
     }
-
+    //remove itself from the accessor Count
+    queue->accessors++;
     return toRet;
 }
 
-//add to priority queue
+//add to priority queue. Due to threading, it must wait for all popping functions to end to ensure that the lowest priority item will always be removed
+//NOTE: It is probably true that if you didn't care so much about always having the highest priority then you could allow both add and pop operations to run concurrently for increased performance
 queue_t *addToQueue(void* data, int priority, queue_t *queue)
 {
     int child;
     int parent;
-    queue_item_t* heap;// = queue->heap;
+    queue_item_t* heap;
 
+    //check to see if adding is allowed yet,
+    //add can only add when accessors is positive or 0
+    pthread_mutex_lock(queue->accessorLock);
+    while(queue->accessors < 0)
+    {
+        pthread_cond_wait(queue->accessorCond, queue->accessorLock);
+    }
+    queue->accessors++;
+    pthread_mutex_unlock(queue->accessorLock);
+
+
+    //TODO: MAKE SURE RESIZING THE HEAP DOESN'T BREAK THE CODE (OH GOD IT'S SO DANGEROUS)
     if (queue->itemCount + 1 > queue->heapSize)
     {
         if((heap = realloc(queue->heap, sizeof(queue_item_t) * (queue->heapSize * 2 + 1))))        //could do this math faster
@@ -100,6 +128,8 @@ queue_t *addToQueue(void* data, int priority, queue_t *queue)
         else
         {   //failure
             printf("No memory?\n");
+            //remove itself from the accessor Count
+            queue->accessors--;
             return NULL;
         }
     }
@@ -124,9 +154,15 @@ queue_t *addToQueue(void* data, int priority, queue_t *queue)
         }
         else
         {
+            //remove itself from the accessor Count
+            queue->accessors--;
             return queue;
         }
     }
+
+    //remove itself from the accessor Count
+    queue->accessors--;
+
     return queue;
 }
 
@@ -134,7 +170,8 @@ queue_t *addToQueue(void* data, int priority, queue_t *queue)
 queue_t *createPriorityQueue(void (*destroyData)(void *data), unsigned int suggestedSize)
 {
     queue_t *queue;
-    int shiftCount = 4;
+    int i;
+    int shiftCount = 5;
 
     if (!(queue = malloc(sizeof(queue_t))))
     {
@@ -143,6 +180,11 @@ queue_t *createPriorityQueue(void (*destroyData)(void *data), unsigned int sugge
 
     //assign destroy function
     queue->destroyData = destroyData;
+
+    //threading
+    queue->accessors = 0;
+    queue->accessorLock = &((pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER);
+    queue->accessorCond = &((pthread_cond_t)PTHREAD_COND_INITIALIZER);
 
     queue->itemCount = 0;
 
@@ -168,6 +210,12 @@ queue_t *createPriorityQueue(void (*destroyData)(void *data), unsigned int sugge
     if (!(queue->heap = malloc(sizeof(queue_item_t) * queue->heapSize)))
     {
         return NULL;                       //could not build heap
+    }
+
+    //make mutexes -- might be able to put this in addToQueue
+    for (i = 0; i < queue->heapSize; i++)
+    {
+        queue->heap[i].heapLock = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
     }
 
     return queue;
