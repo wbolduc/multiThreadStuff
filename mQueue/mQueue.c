@@ -120,6 +120,8 @@ void *pop(queue_t* queue)
     return toRet;
 }
 
+//TODO: replace mutexes with *mutexs to avoid using the &
+
 //add to priority queue. Due to threading, it must wait for all popping functions to end to ensure that the lowest priority item will always be removed
 //NOTE: It is probably true that if you didn't care so much about always having the highest priority then you could allow both add and pop operations to run concurrently for increased performance
 queue_t *addToQueue(void* data, int priority, queue_t *queue, int tid)
@@ -212,18 +214,19 @@ queue_t *addToQueue(void* data, int priority, queue_t *queue, int tid)
     //begin actually adding                             TODO:PLAUSIBLE THAT CHILD ALREADY HAS CHILDREN BEFORE CREATION
     pthread_mutex_lock(&queue->itemCountLock);
     child = queue->itemCount++;
-    pthread_mutex_unlock(&queue->itemCountLock);
-
-    mathDelay(1000*tid);
 
     childLock = &heap[child].itemLock;
-    pthread_mutex_lock(childLock);
+    pthread_mutex_lock(childLock);                      //because adding and popping is mutually exclusive, locking the itemCount and giving the child it's lock before unlocking ensures no children get created before this child is locked
+    pthread_mutex_unlock(&queue->itemCountLock);
+
     heap[child].data = data;
     heap[child].priority = priority;
 
+    //mathDelay(1000*tid);
+
     while (child > 0)
     {
-        //mathDelay(2000);
+        //mathDelay(1000);
         parent = (child + child%2 - 2)/2;
         parentLock = &heap[parent].itemLock;
 
@@ -310,8 +313,6 @@ queue_t *createPriorityQueue(void (*destroyData)(void *data), unsigned int sugge
     for (i = 0; i < queue->heapSize; i++)
     {
         queue->heap[i].itemLock = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
-        queue->heap[i].priority = 0;
-        queue->heap[i].data = NULL;
     }
 
     return queue;

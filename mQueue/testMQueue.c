@@ -84,7 +84,7 @@ int main()
     int i, p, j, rc, lastNum, currNum, sorted, count, duplications;
     char *s;
     counter_data_t *counterData;
-    int addsPerThread = 200;
+    int addsPerThread = 300;
 
 
     srand(time(NULL));
@@ -94,7 +94,7 @@ int main()
     pthread_mutex_init(&counterData->numberLock, NULL);
 
     printf("Queue Test:\n\n");
-    queue_t *queue = createPriorityQueue(&freeString, 10000);
+    queue_t *queue = createPriorityQueue(&freeString, 100000);
 
     pthread_t add_thr[NUM_THREADS];
     pthread_t pop_thr[NUM_THREADS];
@@ -130,7 +130,7 @@ int main()
     printf("\nheap = ");
     printHeap(queue);
 
-    printf("sorted = ");
+    printf("\nsorted = ");
 
     lastNum = 0;
     currNum = 0;
@@ -157,11 +157,11 @@ int main()
         free(s);
     }
     printf("\nThis queue is ");
-    if (sorted != 0 || duplications != 0)
+    if (sorted != 0 )//|| duplications != 0)
     {
         printf("not ");
     }
-    printf("sorted.\n%d/%d values, %d sort errors, %d duplication errors\n", count, NUM_THREADS*addsPerThread, sorted, duplications);
+    printf("sorted.\n%d/%d values, %d sort errors\n", count, NUM_THREADS*addsPerThread, sorted);
     destroyQueue(queue);
     free(counterData);
 }
