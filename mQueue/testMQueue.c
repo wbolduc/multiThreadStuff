@@ -84,7 +84,7 @@ int main()
     int i, p, j, rc, lastNum, currNum, sorted, count, duplications;
     char *s;
     counter_data_t *counterData;
-    int addsPerThread = 300;
+    int addsPerThread = 30;
 
 
     srand(time(NULL));
@@ -94,7 +94,7 @@ int main()
     pthread_mutex_init(&counterData->numberLock, NULL);
 
     printf("Queue Test:\n\n");
-    queue_t *queue = createPriorityQueue(&freeString, 100000);
+    queue_t *queue = createPriorityQueue(&freeString, 1);
 
     pthread_t add_thr[NUM_THREADS];
     pthread_t pop_thr[NUM_THREADS];

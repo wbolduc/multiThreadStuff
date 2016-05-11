@@ -129,22 +129,60 @@ queue_t *addToQueue(void* data, int priority, queue_t *queue, int tid)
     int child;
     int parent;
     int i;
-    pthread_mutex_t* parentLock;
-    pthread_mutex_t* childLock;
+    //pthread_mutex_t* parentLock;
+    //pthread_mutex_t* childLock;
     queue_item_t* heap;
 
     //check to see if adding is allowed yet,
 
     //while not in the proccess of RESIZING
-    pthread_mutex_lock(&queue->resizeLock);
+    /*pthread_mutex_lock(&queue->resizeLock);
     while(queue->needsResizing)
     {
         printf("%d add: waiting to for resizing to finish\n", tid);
         pthread_cond_wait(&queue->resizeCond, &queue->resizeLock);
     }
     pthread_mutex_unlock(&queue->resizeLock);
+    */
 
     //add can only add when accessors is positive or 0
+    /*
+    pthread_mutex_lock(&queue->accessorLock);
+    while(queue->accessors < 0)
+    {
+        printf("%d add: waiting for all poppers to exit\n", tid);
+        pthread_cond_wait(&queue->accessorCond, &queue->accessorLock);
+    }
+    queue->accessors++;
+    pthread_mutex_unlock(&queue->accessorLock);
+    */
+
+    printf("%d add: check resizing, access count = %d\n", tid, queue->accessors);
+
+
+    /*pthread_mutex_lock(&queue->heapSizeLock);
+    while (child >= queue->heapSize)
+    {
+        printf("waiting for space in the heap");
+        pthread_cond_wait(&queue->resizeCond, &queue->heapSizeLock);
+    }
+    pthread_mutex_unlock(&queue->heapSizeLock);
+    */
+
+    //TODO: FIX RESIZE EXCLUSION PROBLEM
+
+    //check if the item about to be added will fit
+    pthread_mutex_lock(&queue->itemCountLock);
+
+    /*
+    while (queue->itemCount >= queue->heapSize)
+    {
+        printf("%d add: waiting for resizing\n", tid);
+        pthread_cond_wait(&queue->resizeCond, &queue->itemCountLock);
+    }       //accessor count is still wrong
+    */
+
+    //check for popper exclusion
     pthread_mutex_lock(&queue->accessorLock);
     while(queue->accessors < 0)
     {
@@ -155,38 +193,46 @@ queue_t *addToQueue(void* data, int priority, queue_t *queue, int tid)
     pthread_mutex_unlock(&queue->accessorLock);
 
 
-    printf("%d add: check resizing\n", tid);
+    //assign child location and give lock
+    child = queue->itemCount++;
+    //childLock = &heap[child].itemLock;
+    printf("item index %d being locked, heapSize = %d\n", child, queue->heapSize);
+    pthread_mutex_lock(&queue->heap[child].itemLock);                      //because adding and popping is mutually exclusive, locking the itemCount and giving the child it's lock before unlocking ensures no children get created before this child is locke
 
-    //checks if the heap requires resizing
-    if (queue->itemCount + 1 > queue->heapSize)////////////////////////////////////// shouldn't happen because when a thread resizes it wits for other threads to leave, therefor
+
+    if (queue->itemCount >= queue->heapSize)
     {
         printf("%d add:----------------NEEDS RESIZING\n", tid);
-        //TODO; FIX THIS, TWO THREADS MAY DOUBLE RESIZE IF THE RUN INTO THIS AT THE SAME TIME
-        queue->needsResizing = 1;   //raise flag for resizing, this blocks all new processes from performing queue operations until it is set back to
+        //queue->needsResizing = 1;   //raise flag for resizing, this blocks all new processes from performing queue operations until it is set back to
 
         //this process waits for accessors to = 0 (all other threads leave)
         pthread_mutex_lock(&queue->accessorLock);
         while(queue->accessors != 1)
         {
+            printf("%d add:----------------Waiting for other threads to leave\n", tid);
             pthread_cond_wait(&queue->accessorCond, &queue->accessorLock);
         }
         pthread_mutex_unlock(&queue->accessorLock);
 
+
         printf("%d add:----------------only thread with access, begin resizing\n", tid);
+        mathDelay(10000);
 
         if((heap = realloc(queue->heap, sizeof(queue_item_t) * (queue->heapSize * 2 + 1))))        //could do this math faster
         {   //success
             queue->heap = heap;
 
             //initialize mutexes
-            for (i = queue->heapSize, queue->heapSize = queue->heapSize * 2 + 1; i < queue->heapSize * 2 + 1; i++)
+            for (i = queue->heapSize, queue->heapSize = queue->heapSize * 2 + 1; i < queue->heapSize; i++)
             {
+                printf("%d -- ", i);
                 queue->heap[i].itemLock = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
             }
-
+            printf("\n");
             queue->needsResizing = 0;   //resets the resize flag, allows other threads to continue
-            pthread_cond_signal(&queue->resizeCond);
+            //pthread_cond_broadcast(&queue->resizeCond);
             printf("%d add:---------------DoneResizing\n", tid);
+            pthread_cond_broadcast(&queue->resizeCond);
         }
         else
         {   //failure
@@ -200,8 +246,9 @@ queue_t *addToQueue(void* data, int priority, queue_t *queue, int tid)
             //resets the resize flag, allows other threads to continue
             queue->needsResizing = 0;
 
-            pthread_cond_signal(&queue->resizeCond);
+            pthread_cond_broadcast(&queue->resizeCond);
             pthread_cond_signal(&queue->accessorCond);
+            pthread_mutex_unlock(&heap[child].itemLock);
             return NULL;
         }
     }
@@ -210,13 +257,13 @@ queue_t *addToQueue(void* data, int priority, queue_t *queue, int tid)
         heap = queue->heap;
     }
 
-
-    //begin actually adding                             TODO:PLAUSIBLE THAT CHILD ALREADY HAS CHILDREN BEFORE CREATION
-    pthread_mutex_lock(&queue->itemCountLock);
+    //assign child location
+/*    pthread_mutex_lock(&queue->itemCountLock);
     child = queue->itemCount++;
 
     childLock = &heap[child].itemLock;
     pthread_mutex_lock(childLock);                      //because adding and popping is mutually exclusive, locking the itemCount and giving the child it's lock before unlocking ensures no children get created before this child is locked
+*/
     pthread_mutex_unlock(&queue->itemCountLock);
 
     heap[child].data = data;
@@ -228,25 +275,24 @@ queue_t *addToQueue(void* data, int priority, queue_t *queue, int tid)
     {
         //mathDelay(1000);
         parent = (child + child%2 - 2)/2;
-        parentLock = &heap[parent].itemLock;
+        //parentLock = &heap[parent].itemLock;
 
-        pthread_mutex_lock(parentLock);
+        pthread_mutex_lock(&heap[parent].itemLock);
 
         if(heap[parent].priority > heap[child].priority)
         {
             swap(heap, parent, child);
-            pthread_mutex_unlock(childLock);
+            pthread_mutex_unlock(&heap[child].itemLock);
             child = parent;
-            childLock = parentLock;
 
         }
         else
         {
-            pthread_mutex_unlock(parentLock);   //might break this
+            pthread_mutex_unlock(&heap[parent].itemLock);   //might break this
             break;
         }
     }
-    pthread_mutex_unlock(childLock);
+    pthread_mutex_unlock(&queue->heap[child].itemLock);
     //remove itself from the accessor Count
     pthread_mutex_lock(&queue->accessorLock);
     queue->accessors--;
@@ -312,7 +358,7 @@ queue_t *createPriorityQueue(void (*destroyData)(void *data), unsigned int sugge
     //make mutexes -- might be able to put this in addToQueue
     for (i = 0; i < queue->heapSize; i++)
     {
-        queue->heap[i].itemLock = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
+        pthread_mutex_init(&(queue->heap[i].itemLock),NULL);
     }
 
     return queue;
