@@ -5,7 +5,7 @@
 
 #include <mQueue.h>
 
-#define NUM_THREADS 4
+int NUM_THREADS;
 
 typedef struct _counter_data_t
 {
@@ -84,8 +84,9 @@ int main()
     int i, p, j, rc, lastNum, currNum, sorted, count, duplications;
     char *s;
     counter_data_t *counterData;
-    int addsPerThread = 30;
+    int addsPerThread = 100;
 
+    NUM_THREADS = 4;
 
     srand(time(NULL));
 
